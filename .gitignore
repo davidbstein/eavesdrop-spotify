@@ -1,3 +1,4 @@
 .DS_Store
 unzipped/*
 SpotifyEavesdrop.app
+node_modules/*
