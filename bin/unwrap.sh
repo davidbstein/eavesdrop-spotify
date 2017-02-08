@@ -1,14 +1,20 @@
-# TODO: figure out where the overlap of shared libs is and automate this part
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+rm -rf $DIR/../SpotifyEavesdrop.app
+cp -r /Applications/Spotify.app $DIR/../SpotifyEavesdrop.app
+
 pushd .
+cd $DIR/..
 mkdir unbundled
-cd unbundled
-# cp -r something.spa
-# cd something.spa
-# ../../node_modules/browser-unpack/bin/cmd.js < bundle.js > unbundled.json
-# rm -rf raw
-# mkdir raw
-# cd raw
-python -c "
+pwd
+
+for rawfn in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/*;
+do
+  fn=$(echo $rawfn | tr "/" "\n" | tail -n1)
+  cd $DIR/../unbundled
+  cp -r $DIR/../unzipped/$fn $fn
+  cd $fn
+  ../../node_modules/browser-unpack/bin/cmd.js < bundle.js > unbundled.json
+  python -c "
 import json
 import os
 
@@ -30,7 +36,7 @@ if not os.path.exists(pwd):
 
 for script in content:
   print script['id']
-  name = 'raw/unknown/%s.js' % script['id']
+  name = 'raw/entry_point%s.js' % script['id']
   if num_to_name.get(script['id']):
     name = pwd + num_to_name[script['id']]
   if '.' not in os.path.basename(name):
@@ -43,5 +49,6 @@ for script in content:
   with file(name, 'wb') as f:
     f.write(script['source'].encode('utf-8'))
 "
+done
 
 popd
