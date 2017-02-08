@@ -10,6 +10,7 @@ cd unbundled
 # cd raw
 python -c "
 import json
+import os
 
 with file('unbundled.json') as f:
   content = json.loads(f.read())
