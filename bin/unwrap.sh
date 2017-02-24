@@ -7,7 +7,7 @@ cd $DIR/..
 mkdir unbundled
 pwd
 
-for rawfn in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/*;
+for rawfn in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/b*;
 do
   fn=$(echo $rawfn | tr "/" "\n" | tail -n1)
   cd $DIR/../unbundled

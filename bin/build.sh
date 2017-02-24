@@ -3,7 +3,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 for a in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/*;
 do
   rm $a
-  cd $DIR/../unzipped/${a:64}
-  zip -r $a . *;
+  fn=$(echo $a | tr "/" "\n" | tail -n1)
+  echo "building: ${fn}"
+  cd $DIR/../unzipped/${fn}
+  zip -r $a . * > /dev/null;
   cd -
 done;

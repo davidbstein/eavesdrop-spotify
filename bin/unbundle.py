@@ -11,7 +11,7 @@ class Node:
         self.name = None
         self.children = {}
         self.contents = {}
-        self.default_name = "__%s" % _get_count()
+        self.default_name = "_%s" % _get_count()
         self.parent = None
 
     def add_file(self, script):
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     entry_node = Node()
     entry_node.add_file(entry_point)
     module_node = Node()
-    module_node.default_name = "_module"
+    module_node.default_name = "node_modules"
 
     to_visit = [entry_point['id']]
     visited = set()
