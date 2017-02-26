@@ -18,6 +18,8 @@
   "homepage": "https://github.com/davidbstein/eavesdrop-spotify#readme",
   "devDependencies": {
     "browser-unpack": "^1.1.1",
-    "browserify-unpack": "^0.4.1"
+    "browserify": "^14.0.0",
+    "browserify-unpack": "^0.4.1",
+    "webpack": "^2.2.1"
   }
 }
