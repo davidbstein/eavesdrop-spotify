@@ -1,8 +1,10 @@
+## TODO: a relative path can either point to foo.js or foo/index.js - this can create ambiguous imports if both styles are used in the same project.
+
 import json
 import os
 import sys
 
-_VERBOSE_LEVEL = 2
+_VERBOSE_LEVEL = 3
 _DEFAULT_FILE_VIEW = "all"
 def log(message):
   if _VERBOSE_LEVEL >= 3:
@@ -131,23 +133,7 @@ class Folder:
       current.contents[file.name] = file
       file.folder = current
     assert file.folder == current, "%s no good: %s != %s" % \
-      (file.name, file.folder.name, current.name)
-
-  # def stringify_tree(self, depth=0, show_files=_DEFAULT_FILE_VIEW):
-  #   space = ".  " * depth + ".  "
-  #   to_ret = "%s%s/" % (space, self.name)
-  #   if show_files == "count":
-  #     to_ret += " (%d files) \n" % (len(self.contents))
-  #   else:
-  #     to_ret += "\n"
-  #   for child in sorted(self.children.values()):
-  #     if child == self or child == self.children.get(".."):
-  #       continue
-  #     to_ret += "%s" % (child.stringify_tree(depth+1, show_files))
-  #   if show_files == "all":
-  #     for file in self.contents.values():
-  #       to_ret += "%s |-(%d)%s\n" % (space, file.id, file.name)
-  #   return to_ret
+      (file.name, file.folder.repr_path(), current.repr_path())
 
   def repr_path(self):
     folder = self
