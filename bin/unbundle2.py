@@ -2,6 +2,20 @@ import json
 import os
 import sys
 
+_VERBOSE_LEVEL = 2
+_DEFAULT_FILE_VIEW = "all"
+def log(message):
+  if _VERBOSE_LEVEL >= 3:
+    print message
+
+def notify(message):
+  if _VERBOSE_LEVEL >= 2:
+    print message
+
+def warn(message):
+  if _VERBOSE_LEVEL >= 1:
+    print message
+
 
 _count = [0]
 def _get_count():
@@ -12,7 +26,11 @@ def _get_count():
 def parse_path(filepath):
   path = []
   (subpath, element) = os.path.split(filepath)
-  element = element if '.' in element[1:] else "%s.js" % element
+  # element = element if '.' in element[1:] else "%s.js" % element
+  # removed this becaue json gets turned into js by spotify's
+  # bundler, though this may be the right thing to do if I ever
+  # go back and tweak the
+  element = element if element.endswith(".js") else "%s.js" % element
   fp = FilePath(path, element)
   while subpath != "":
     (subpath, element) = os.path.split(subpath)
@@ -48,7 +66,7 @@ class File:
     self.name = name
 
   def get_path(self):
-    return "%s %s" % (self.folder.repr_path(), self.name)
+    return "%s%s" % (self.folder.repr_path(), self.name)
 
   def repr_source(self):
     to_ret = unicode()
@@ -64,8 +82,13 @@ class File:
     pass
 
 class Folder:
-  def __init__(self, name=None):
+  def __init__(self, name, module_root=None, self_root=False):
+    if self_root:
+      assert not module_root
+      module_root = self
+    assert module_root
     self._id = _get_count()
+    self.module_root = module_root
     self.name = name or ("_%d" % self._id)
     self.children = {".": self}
     self.contents = {}
@@ -77,70 +100,89 @@ class Folder:
     return folder
 
   def create_folder(self, name):
-    print "adding %s to %s" % (name, self.name)
+    log("adding %s to %s (%d)" % (name, self.name, self._id))
     if name == "..":
-      folder = Folder(name=None)
+      folder = Folder(name=None, module_root=self.module_root)
       folder.children[self.name] = self
       self.children['..'] = folder
     else:
-      folder = Folder(name=name)
+      folder = Folder(name=name, module_root=self.module_root)
       folder.children['..'] = self
       self.children[name] = folder
     return folder
 
-  def create_relative_file(self, filepath, file):
-    current = self
+  def create_relative_file(self, path, file):
+    assert file.name
+    filepath = parse_path(path)
+    is_module = not filepath.parts
+    if is_module:
+      filepath = parse_path("./%s/%s" % (path, file.name))
+    if is_module or filepath.parts[0] not in ('.', '..'):
+      current = self.module_root
+    else:
+      current = self
     for folder in filepath.parts:
       current = current.get_folder(folder)
-    if current.contents.get(file.name):
-      if current.contents[file.name] != file:
-        # print file.repr_source()
-        # print current.contents[file.name].repr_source()
-        raise("different files in the same place")
-    if file.folder != None:
-      assert file.folder == current, "%s no good: %s != %s" % \
-        (file.name, file.folder.name, current.name)
-    else:
+    assert current.contents.get(file.name, file) == file, \
+      "different files in the same place %s %s" % (path, filepath)
+    if is_module:
+      current.module_root = current.create_folder("node_modules")
+    if file.folder == None:
       current.contents[file.name] = file
       file.folder = current
+    assert file.folder == current, "%s no good: %s != %s" % \
+      (file.name, file.folder.name, current.name)
 
-  def repr_tree(self, depth=0, show_files="count"):
-    space = ".  " * depth + ".  "
-    to_ret = "%s%s/" % (space, self.name)
-    if show_files == "count":
-      to_ret += " (%d files) \n" % (len(self.contents))
-    else:
-      to_ret += "\n"
-    for child in sorted(self.children.values()):
-      if child == self or child == self.children.get(".."):
-        continue
-      to_ret += "%s" % (child.repr_tree(depth+1, show_files))
-    if show_files == "all":
-      for file in self.contents.values():
-        to_ret += "%s |-(%d)%s\n" % (space, file.id, file.name)
-    return to_ret
+  # def stringify_tree(self, depth=0, show_files=_DEFAULT_FILE_VIEW):
+  #   space = ".  " * depth + ".  "
+  #   to_ret = "%s%s/" % (space, self.name)
+  #   if show_files == "count":
+  #     to_ret += " (%d files) \n" % (len(self.contents))
+  #   else:
+  #     to_ret += "\n"
+  #   for child in sorted(self.children.values()):
+  #     if child == self or child == self.children.get(".."):
+  #       continue
+  #     to_ret += "%s" % (child.stringify_tree(depth+1, show_files))
+  #   if show_files == "all":
+  #     for file in self.contents.values():
+  #       to_ret += "%s |-(%d)%s\n" % (space, file.id, file.name)
+  #   return to_ret
 
   def repr_path(self):
     folder = self
     path = ""
+    path = "{name}/{path}".format(
+      name=folder.name,
+      #id=folder._id,
+      path=path,
+    )
     while ".." in folder.children:
       folder = folder.children['..']
-      path = "%s/%s" % (folder.name, path)
+      path = "{name}/{path}".format(
+        name=folder.name,
+        #id=folder._id,
+        path=path,
+      )
     return path
 
 class ReconstructedSource:
   def __init__(self, file_target="unbundled.json"):
-    self.module_root = Folder("module_folder")
     # creates self.entry and self.files
     self.entry = None
     self.files = None
     self._parse_files(file_target)
     # construct folders
-    self._construct_folders(self.files, self.module_root)
-    # find src root
+    self._construct_folders(self.files, self.entry.folder.module_root)
+    # find src root and attach node_modules
     src_root = self.entry.folder
     while ".." in src_root.children:
       src_root = src_root.children['..']
+    self.root = src_root
+    assert self.entry.folder.module_root.name not in self.root.children
+    module_root = self.entry.folder.module_root
+    self.root.children[module_root.name] = module_root
+    module_root.children['..'] = self.root
 
   def get_src_root(self):
     src_root = self.entry.folder
@@ -152,6 +194,7 @@ class ReconstructedSource:
     with open(file_target) as f:
       bundle = json.loads(f.read())
     files = {}
+    module_root = Folder("node_modules", self_root=True)
     for raw_file in bundle:
       file = File(**raw_file)
       files[file.id] = file
@@ -159,7 +202,7 @@ class ReconstructedSource:
         assert not self.entry, "too many entry points"
         self.entry = file
         self.entry.set_name("entry_point.js")
-        self.entry.folder = Folder("entry_folder")
+        self.entry.folder = Folder("entry_folder", module_root)
         self.entry.folder.contents[self.entry.name] = self.entry
     for file in files.itervalues():
       for dep_id, dep_path in file.deps.iteritems():
@@ -170,28 +213,25 @@ class ReconstructedSource:
     visited = set()
     to_visit = [self.entry]
     while to_visit:
-      raw_input()
       current_file = to_visit.pop()
       current_folder = current_file.folder
       visited.add(current_file.id)
       assert len(visited) <= len(files)
-      print "\n====\nvisiting", current_file.id, current_file.get_path()
-      print "current queue legth: ", len(to_visit)
-      print "current structure:"
-      print self.get_src_root().repr_tree(depth=2, show_files="all")
-      print self.module_root.repr_tree(depth=2, show_files="all")
-      print "adding deps:"
+      log(
+        "\n====\nvisiting: %s %s" %
+        (current_file.id, current_file.get_path())
+      )
+      log("current queue legth: %d" % len(to_visit))
+      log("adding deps to %s:" % current_file.get_path())
       for id, path in current_file.deps.iteritems():
-        print "  ", id, path
+        log("  %2d %s" % (id, path))
         target_dep = files[id]
-        file_path = parse_path(path)
-        if not file_path.parts:
-          file_path = parse_path("%s/main.js" % path)
-        target_dep.set_name(file_path.target)
-        if file_path.parts[0] in (".", ".."):
-          current_folder.create_relative_file(file_path, target_dep)
+        parsed_path = parse_path(path)
+        if not parsed_path.parts:
+          target_dep.set_name("index.js")
         else:
-          module_root.create_relative_file(file_path, target_dep)
+          target_dep.set_name(parsed_path.target)
+        current_folder.create_relative_file(path, target_dep)
         if target_dep.id not in visited:
           to_visit.append(target_dep)
 
@@ -200,7 +240,7 @@ class ReconstructedSource:
 
 
 def run_tests():
-  print "test parse_path"
+  log("test parse_path")
   fp1 = parse_path("module/some/silly/file")
   assert fp1.parts == ["module", "some", "silly"], fp1
   assert fp1.target == "file.js", fp1
@@ -209,17 +249,44 @@ def run_tests():
   fp3 = parse_path("react")
   assert fp3.parts == [] and fp3.target == "react.js", fp3
 
-  print "test simple reference"
+  log("test simple reference")
 
 
-def run():
+def run(webpack_template):
+  notify("working...")
   rs = ReconstructedSource()
-  print ""
-  print rs.get_src_root().repr_tree()
-  print rs.module_root.repr_tree()
+  notify("Finished rolling up files")
+  notify("Writing files:")
+  for id in xrange(1,1+len(rs.files)):
+    script = rs.files[id]
+    path = "raw/%s" % (script.get_path(), )
+    notify("writing file {id}: {path}".format(
+      id=id,
+      path=path,
+    ))
+    dir = os.path.dirname(path)
+    if not os.path.exists(dir):
+      os.makedirs(os.path.dirname(path))
+    with open(path, 'wb') as f:
+      f.write(script.source.encode('utf-8'))
+    with open("webpack.config.js", "wb") as f:
+      f.write(webpack_template.format(
+        entry_path=rs.entry.get_path()
+      ))
+
+_WEBPACK_TEMPLATE = """
+var path = require('path');
+
+module.exports = {{
+  entry: './raw/{entry_path}',
+  output: {{
+    filename: 'rebundled.js'
+  }}
+}};
+"""
 
 if __name__ == '__main__':
   if sys.argv[1] == "test":
     run_tests()
   elif sys.argv[1] == "run":
-    run()
+    run(_WEBPACK_TEMPLATE)

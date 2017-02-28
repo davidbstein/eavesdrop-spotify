@@ -7,16 +7,16 @@ cd $DIR/..
 mkdir unbundled
 pwd
 
-for rawfn in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/b*;
+for rawfn in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/a*;
 do
   fn=$(echo $rawfn | tr "/" "\n" | tail -n1)
   cd $DIR/../unbundled
   cp -r $DIR/../unzipped/$fn $fn
   cd $fn
   echo
-  echo $fn
+  echo "unwrapping $fn"
   ../../node_modules/browser-unpack/bin/cmd.js < bundle.js > unbundled.json
-  python ../../bin/unbundle.py
+  python ../../bin/unbundle2.py run
 done
 
 popd
