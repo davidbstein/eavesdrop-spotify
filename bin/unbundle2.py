@@ -1,5 +1,3 @@
-## TODO: a relative path can either point to foo.js or foo/index.js - this can create ambiguous imports if both styles are used in the same project.
-
 import json
 import os
 import sys
@@ -7,6 +5,7 @@ import sys
 _VERBOSE_LEVEL = 3
 _DEFAULT_FILE_VIEW = "all"
 _WRITE=False
+
 def log(message):
   if _VERBOSE_LEVEL >= 3:
     print message
@@ -26,6 +25,39 @@ def _get_count():
     return _count[0]
 
 
+def stringify_folder(folder, depth=0, show_files=_DEFAULT_FILE_VIEW):
+  space = ".  " * depth + ".  "
+  to_ret = "%s%s/" % (space, folder.name)
+  if show_files == "count":
+    to_ret += " (%d files) \n" % (len(folder.contents))
+  else:
+    to_ret += "\n"
+  for child in sorted(folder.children.values()):
+    if child == folder or child == folder.children.get(".."):
+      continue
+    to_ret += "%s" % (stringify_folder(child, depth+1, show_files))
+  if show_files == "all":
+    for file in folder.contents.values():
+      to_ret += "%s |-(%d)%s\n" % (space, file.id, file.name)
+  return to_ret
+
+
+class MultipleLocationError(Exception):
+  def __init__(self, msg, file, folder):
+    super(MultipleLocationError, self)
+    self.file=file
+    self.folder=folder
+
+  def print_details(self):
+    print "folder: \n%s" % stringify_folder(self.folder.get_root())
+    print "file path: {path}".format(path=self.file.get_path())
+    print "attempted: {path}".format(path=self.folder.repr_path())
+    print type(self.file)
+    print "file refs: \n{refs}".format(
+      refs=json.dumps(self.file.refs, indent=2)
+    )
+
+
 def parse_path(filepath):
   path = []
   (subpath, element) = os.path.split(filepath)
@@ -42,19 +74,27 @@ def parse_path(filepath):
   return fp
 
 
-class MultipleLocationError(Exception):
-  def __init__(self, msg, file, folder):
-    super(MultipleLocationError, self)
-    self.file=file
-    self.folder=folder
-
-  def print_details(self):
-    print "file path: {path}".format(path=self.file.get_path())
-    print "attempted: {path}".format(path=self.folder.repr_path())
-    print type(self.file)
-    print "file refs: \n{refs}".format(
-      refs=json.dumps(self.file.refs, indent=2)
-    )
+def turn_file_to_index(file):
+  """
+  `require ('./foo')` is ambiguous, it can either import
+  './foo.js' or './foo/index.js', depending on if the module is a
+  folder. This can cause problems in two ways -
+   - Easily detectable: something tries to require('./foo/index.js')
+     with the file id of foo.js.
+   - more annoying: foo.js tries to do a relative import (say,
+     to ../../lib), which fails because it is in the incorrect
+     relative location in the folder tree.
+  because we default to 'foo.js' in imports, this function converts
+  a file into a folder with an `index.js`
+  """
+  assert file.name.endswith('.js')
+  raw_name = file.name[:-len('.js')]
+  folder = file.folder
+  file.folder = folder.get_folder(raw_name)
+  del folder.contents[file.name]
+  file.name = 'index.js'
+  file.folder.contents[file.name] = file
+  return None
 
 
 class FilePath:
@@ -155,6 +195,12 @@ class Folder:
         current,
       )
 
+  def get_root(self):
+    src_root = self
+    while ".." in src_root.children:
+      src_root = src_root.children['..']
+    return src_root
+
   def repr_path(self):
     folder = self
     path = ""
@@ -171,6 +217,7 @@ class Folder:
         path=path,
       )
     return path
+
 
 class ReconstructedSource:
   def __init__(self, file_target="unbundled.json"):
@@ -191,9 +238,7 @@ class ReconstructedSource:
     module_root.children['..'] = self.root
 
   def get_src_root(self):
-    src_root = self.entry.folder
-    while ".." in src_root.children:
-      src_root = src_root.children['..']
+    src_root = self.entry.folder.get_root()
     return src_root
 
   def _parse_files(self, file_target):
@@ -236,7 +281,10 @@ class ReconstructedSource:
         if not parsed_path.parts:
           target_dep.set_name("index.js")
         else:
-          target_dep.set_name(parsed_path.target)
+          try:
+            target_dep.set_name(parsed_path.target)
+          except:
+            raise NotImplementedError("gotta handle this now")
         current_folder.create_relative_file(path, target_dep)
         if target_dep.id not in visited:
           to_visit.append(target_dep)
