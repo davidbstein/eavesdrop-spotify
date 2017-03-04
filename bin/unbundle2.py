@@ -6,6 +6,7 @@ import sys
 
 _VERBOSE_LEVEL = 3
 _DEFAULT_FILE_VIEW = "all"
+_WRITE=False
 def log(message):
   if _VERBOSE_LEVEL >= 3:
     print message
@@ -39,6 +40,21 @@ def parse_path(filepath):
     path.append(element)
   path.reverse()
   return fp
+
+
+class MultipleLocationError(Exception):
+  def __init__(self, msg, file, folder):
+    super(MultipleLocationError, self)
+    self.file=file
+    self.folder=folder
+
+  def print_details(self):
+    print "file path: {path}".format(path=self.file.get_path())
+    print "attempted: {path}".format(path=self.folder.repr_path())
+    print type(self.file)
+    print "file refs: \n{refs}".format(
+      refs=json.dumps(self.file.refs, indent=2)
+    )
 
 
 class FilePath:
@@ -132,8 +148,12 @@ class Folder:
     if file.folder == None:
       current.contents[file.name] = file
       file.folder = current
-    assert file.folder == current, "%s no good: %s != %s" % \
-      (file.name, file.folder.repr_path(), current.repr_path())
+    if file.folder != current:
+      raise MultipleLocationError(
+        "tried to write %s to two locations" % file.name,
+        file,
+        current,
+      )
 
   def repr_path(self):
     folder = self
@@ -239,6 +259,13 @@ def run_tests():
 
 
 def run(webpack_template):
+  try:
+    rs = ReconstructedSource()
+  except MultipleLocationError, mle:
+    mle.print_details()
+    raise mle
+
+def build_tree(webpack_template):
   notify("working...")
   rs = ReconstructedSource()
   notify("Finished rolling up files")
@@ -276,3 +303,5 @@ if __name__ == '__main__':
     run_tests()
   elif sys.argv[1] == "run":
     run(_WEBPACK_TEMPLATE)
+  elif sys.argv[1] == "build_tree":
+    build_tree(_WEBPACK_TEMPLATE)
