@@ -57,6 +57,12 @@ class MultipleLocationError(Exception):
       refs=json.dumps(self.file.refs, indent=2)
     )
 
+class NameMismatchError(Exception):
+  def __init__(self, file, name):
+    super(NameMismatchError, self)
+    self.file = file
+    self.name = name
+
 
 def parse_path(filepath):
   path = []
@@ -119,8 +125,8 @@ class File:
     self.folder = None
 
   def set_name(self, name):
-    assert self.name == None or self.name == name, \
-      "%s != %s" % (self.name, name)
+    if self.name != None and self.name != name:
+      raise NameMismatchError(self, name)
     self.name = name
 
   def get_path(self):
@@ -283,8 +289,20 @@ class ReconstructedSource:
         else:
           try:
             target_dep.set_name(parsed_path.target)
-          except:
-            raise NotImplementedError("gotta handle this now")
+          except NameMismatchError, nme:
+            if (
+              target_dep.name != "index.js"
+              and parsed_path.target == "index.js"
+              ):
+              turn_file_to_index(target_dep)
+            elif (
+              target_dep.name == "index.js"
+              and path.endswith(target_dep.folder.name)
+              ):
+              path = path + "/index.js"
+            else:
+              print target_dep.name, parsed_path.target, path
+              raise nme
         current_folder.create_relative_file(path, target_dep)
         if target_dep.id not in visited:
           to_visit.append(target_dep)
@@ -302,7 +320,6 @@ def run_tests():
   assert fp2.parts == ["."] and fp2.target == "file.js", fp2
   fp3 = parse_path("react")
   assert fp3.parts == [] and fp3.target == "react.js", fp3
-
   log("test simple reference")
 
 
@@ -311,6 +328,9 @@ def run(webpack_template):
     rs = ReconstructedSource()
   except MultipleLocationError, mle:
     mle.print_details()
+    ## TODO: if target_path == current_location.parent then we started
+    ## one level too high because our origin is in fact
+    ## "orogin/index.js"
     raise mle
 
 def build_tree(webpack_template):
