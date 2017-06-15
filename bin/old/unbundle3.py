@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from collections import namedtuple
 
 _VERBOSE_LEVEL = 3
 _DEFAULT_FILE_VIEW = "all"
@@ -21,41 +22,17 @@ def warn(message):
 
 _count = [0]
 def _get_count():
-    _count[0] += 1
-    return _count[0]
-
-
-def stringify_folder(folder, depth=0, show_files=_DEFAULT_FILE_VIEW):
-  space = ".  " * depth + ".  "
-  to_ret = "%s%s/" % (space, folder.name)
-  if show_files == "count":
-    to_ret += " (%d files) \n" % (len(folder.contents))
-  else:
-    to_ret += "\n"
-  for child in sorted(folder.children.values()):
-    if child == folder or child == folder.children.get(".."):
-      continue
-    to_ret += "%s" % (stringify_folder(child, depth+1, show_files))
-  if show_files == "all":
-    for file in folder.contents.values():
-      to_ret += "%s |-(%d)%s\n" % (space, file.id, file.name)
-  return to_ret
+  _count[0] += 1
+  return _count[0]
 
 
 class MultipleLocationError(Exception):
-  def __init__(self, msg, file, folder):
+  def __init__(self, source_file, target_file, original_folder, new_folder):
     super(MultipleLocationError, self)
-    self.file=file
-    self.folder=folder
-
-  def print_details(self):
-    print "folder: \n%s" % stringify_folder(self.folder.get_root())
-    print "file path: {path}".format(path=self.file.get_path())
-    print "attempted: {path}".format(path=self.folder.repr_path())
-    print type(self.file)
-    print "file refs: \n{refs}".format(
-      refs=json.dumps(self.file.refs, indent=2)
-    )
+    self.source_file = source_file
+    self.target_file = target_file
+    self.original_folder = original_folder
+    self.new_folder = new_folder
 
 class NameMismatchError(Exception):
   def __init__(self, file, name):
@@ -63,11 +40,21 @@ class NameMismatchError(Exception):
     self.file = file
     self.name = name
 
+FilePath = namedtuple("FilePath", ["parts", "target"])
+
+def test_parse_path():
+  fp1 = parse_path("module/some/silly/file")
+  assert fp1.parts == ["module", "some", "silly"], fp1
+  assert fp1.target == "file.js", fp1
+  fp2 = parse_path("./file.js")
+  assert fp2.parts == ["."] and fp2.target == "file.js", fp2
+  fp3 = parse_path("react")
+  assert fp3.parts == [] and fp3.target == "react.js", fp3
 
 def parse_path(filepath):
   path = []
   (subpath, element) = os.path.split(filepath)
-  # element = element if '.' in element[1:] else "%s.js" % element
+  # # element = element if '.' in element[1:] else "%s.js" % element
   # removed this becaue json gets turned into js by spotify's
   # bundler, though this may be the right thing to do if I ever
   # go back and tweak the
@@ -79,40 +66,7 @@ def parse_path(filepath):
   path.reverse()
   return fp
 
-
-def turn_file_to_index(file):
-  """
-  `require ('./foo')` is ambiguous, it can either import
-  './foo.js' or './foo/index.js', depending on if the module is a
-  folder. This can cause problems in two ways -
-   - Easily detectable: something tries to require('./foo/index.js')
-     with the file id of foo.js.
-   - more annoying: foo.js tries to do a relative import (say,
-     to ../../lib), which fails because it is in the incorrect
-     relative location in the folder tree.
-  because we default to 'foo.js' in imports, this function converts
-  a file into a folder with an `index.js`
-  """
-  assert file.name.endswith('.js')
-  raw_name = file.name[:-len('.js')]
-  folder = file.folder
-  file.folder = folder.get_folder(raw_name)
-  del folder.contents[file.name]
-  file.name = 'index.js'
-  file.folder.contents[file.name] = file
-  return None
-
-
-class FilePath:
-  def __init__(self, parts, target):
-    self.parts = parts
-    self.target = target
-
-  def __repr__(self):
-    return "FilePath(%s, %s)" % (self.parts, self.target)
-
-
-class File:
+class File(object):
   def __init__(self, id, source, deps, name=None, entry=False):
     self.name = name
     self.id = id
@@ -122,7 +76,15 @@ class File:
     self.deps = {id: path for path, id in deps.iteritems()}
     # id -> path to file from self
     self.refs = {}
+    self.index_flag = False
     self.folder = None
+
+  def reset():
+    self.refs = {}
+    self.folder = None
+
+  def flag_as_index(self):
+    self.index = True
 
   def set_name(self, name):
     if self.name != None and self.name != name:
@@ -130,24 +92,20 @@ class File:
     self.name = name
 
   def get_path(self):
-    return "%s%s" % (self.folder.repr_path(), self.name)
+    name = self.name if not self.index_flag else "index.js"
+    return "%s%s" % (self.folder.repr_path(), name)
 
-  def repr_source(self):
+  def get_source(self):
     to_ret = unicode()
     to_ret += "// GENERATED SOURCE FILE FROM BUNDLE\n"
     to_ret += "// %s %s\n" % (self.name, self.folder)
     to_ret += self.source
     return to_ret
 
-  def perform_consistency_check(self):
-    # check all deps get to this file
 
-    # check all refs go to the correct file
-    pass
-
-class Folder:
-  def __init__(self, name, module_root=None, self_root=False):
-    if self_root:
+class Folder(object):
+  def __init__(self, name, module_root=None, is_module_root=False):
+    if is_module_root:
       assert not module_root
       module_root = self
     assert module_root
@@ -157,13 +115,31 @@ class Folder:
     self.children = {".": self}
     self.contents = {}
 
-  def get_folder(self, name, create=True):
+  def get_root(self):
+    src_root = self
+    while ".." in src_root.children:
+      src_root = src_root.children['..']
+    return src_root
+
+  def get_parent(self):
+    return self.get_child_folder("..")
+
+  def get_child_folder(self, name, create=True):
     folder = self.children.get(name)
     if not folder and create:
-      folder = self.create_folder(name)
+      folder = self._create_folder(name)
     return folder
 
-  def create_folder(self, name):
+  def repr_path(self):
+    folder = self
+    path = ""
+    path = "{name}/".format(name=folder.name)
+    while ".." in folder.children:
+      folder = folder.children['..']
+      path = "{name}/{path}".format(name=folder.name, path=path)
+    return path
+
+  def _create_folder(self, name):
     log("adding %s to %s (%d)" % (name, self.name, self._id))
     if name == "..":
       folder = Folder(name=None, module_root=self.module_root)
@@ -200,30 +176,6 @@ class Folder:
         file,
         current,
       )
-
-  def get_root(self):
-    src_root = self
-    while ".." in src_root.children:
-      src_root = src_root.children['..']
-    return src_root
-
-  def repr_path(self):
-    folder = self
-    path = ""
-    path = "{name}/{path}".format(
-      name=folder.name,
-      #id=folder._id,
-      path=path,
-    )
-    while ".." in folder.children:
-      folder = folder.children['..']
-      path = "{name}/{path}".format(
-        name=folder.name,
-        #id=folder._id,
-        path=path,
-      )
-    return path
-
 
 class ReconstructedSource:
   def __init__(self, file_target="unbundled.json"):
@@ -283,29 +235,28 @@ class ReconstructedSource:
       for id, path in current_file.deps.iteritems():
         log("  %2d %s" % (id, path))
         target_dep = files[id]
-        parsed_path = parse_path(path)
-        if not parsed_path.parts:
-          target_dep.set_name("index.js")
-        else:
-          try:
-            target_dep.set_name(parsed_path.target)
-          except NameMismatchError, nme:
-            if (
-              target_dep.name != "index.js"
-              and parsed_path.target == "index.js"
-              ):
-              turn_file_to_index(target_dep)
-            elif (
-              target_dep.name == "index.js"
-              and path.endswith(target_dep.folder.name)
-              ):
-              path = path + "/index.js"
-            else:
-              print target_dep.name, parsed_path.target, path
-              raise nme
-        current_folder.create_relative_file(path, target_dep)
+        self._place_relative_file(current_folder, target_dep, path)
         if target_dep.id not in visited:
           to_visit.append(target_dep)
+
+  def _place_relative_file(self, current_folder, target_dep, path):
+    parsed_path = parse_path(path)
+    if target_dep.index_flag and not path.endswith("index.js"):
+      path += "/index.js"
+    if not parsed_path.parts:
+      # this is a module entry.
+      target_dep.set_name("index.js")
+    else:
+      try:
+        target_dep.set_name(parsed_path.target)
+      except NameMismatchError, nme:
+        target_is_index = target_dep.name == "index.js"
+        if not target_is_index and parsed_path.target == "index.js":
+          turn_file_to_index(target_dep)
+        else:
+          print target_dep.name, parsed_path.target, path
+          raise nme
+    current_folder.create_relative_file(path, target_dep)
 
   def validate(self):
     pass
