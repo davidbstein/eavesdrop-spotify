@@ -7,7 +7,7 @@ cd $DIR/..
 mkdir unbundled
 pwd
 
-for rawfolder_name in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/a*;
+for rawfolder_name in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/artist*;
 do
   folder_name=$(echo $rawfolder_name | tr "/" "\n" | tail -n1)
   cd $DIR/../unbundled

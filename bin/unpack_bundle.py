@@ -1,3 +1,3 @@
-import unbundler
+from unbundler import unbundler
 
-print "done!"
+unbundler.run()
