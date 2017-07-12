@@ -17,15 +17,19 @@ import json
 
 def parse_file(file_target="unbundled.json"):
   """
-  returns an immutabile dictionary of FileNodes keyed on ID
+  returns a n immutabile dictionary of FileNodes keyed on ID
   """
   with file(file_target) as f:
     content = json.loads(f.read())
   nodes = {
-    raw_file_name['id']: FileNode(**raw_file_name)
-    for raw_file_name in content
+    raw_file_node['id']: FileNode(**raw_file_node)
+    for raw_file_node in content
   }
   for ref_id, node in nodes.iteritems():
+    if node._dup_id:
+      # undo the dedup webpack optimization
+      node._source = nodes[node._dup_id].source
+    # add dependency paths
     for dep_id, path in node.deps.iteritems():
       nodes[dep_id].set_ref(ref_id, path)
   return nodes
