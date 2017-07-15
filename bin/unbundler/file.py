@@ -13,8 +13,10 @@ class FileNode(object):
     assert attr_name in ('source', 'id', 'deps', 'entry', 'refs')
     return self.__dict__['_'+attr_name]
 
-  def __repr__(self):
-    return "<FileNode id:{_id}>".format(**self.__dict__)
+  def __str__(self):
+    if self._entry:
+      return "<FileNode ENTRY {_id}>".format(**self.__dict__)
+    return "<FileNode {_id}>".format(**self.__dict__)
 
   def set_ref(self, ref_id, path):
     assert ref_id not in self.refs

@@ -71,9 +71,20 @@ from collections import (
   defaultdict,
 )
 
+
+
+def headerstr(s):
+  print ""
+  print magenta("#" * (len(s) + 4))
+  print magenta("# %s #" % s)
+  print magenta("#" * (len(s) + 4))
+  print ""
+
 ####################
 # parse file nodes #
 ####################
+
+headerstr("setup")
 
 #   create metadata object for each file node
 #    - end of path
@@ -116,7 +127,7 @@ folder_tree.set_entry(entry_node)
 # Analysis of files #
 #####################
 
-print "finding which files are index.js"
+headerstr("finding which files are index.js")
 
 def _name_parse(r):
   s = r.split('/')[-1]
@@ -143,7 +154,7 @@ def check_for_index_ref(cur_node_id, cur_node, nodes=nodes):
     if cur_node.name == "index.js":
       cur_node.is_index = True
   elif len(names) == 0:
-    cur_node.name = "unnamed_%s.js" % cur_node.id
+    cur_node.name = "index.js" # % cur_node.id
     print yellow("unnamed"), cur_node.id, "is entry:", cur_node.entry
   else:
     print names
@@ -172,10 +183,54 @@ for cur_node_id, cur_node in nodes.iteritems():
   check_for_index_ref(cur_node_id, cur_node)
   check_for_folder_duplication(cur_node_id, cur_node)
 
+headerstr("doing a depth check")
+
+def print_depth_error(cur_file_id, depths):
+  to_ret = ['file %d has inconsistent depths' % cur_file_id,'depths:']
+  cur_depths = depths[cur_file_id]
+  for id, d in sorted(cur_depths.iteritems(), key=lambda p: p[1]):
+    ref = depths[id]
+    path = nodes[id].deps[cur_file_id]
+    spc = '\n          '
+    name = nodes[id].name
+    to_ret.append("id: {id:4} {name} {spc}depth: {d:2} {spc}{ref}{spc}{path}".format(**locals()))
+  return '\n'.join(to_ret)
+
+def depth_check(nodes=nodes, entry_id=entry_node.id):
+  file_ids_to_visit = deque([entry_id])
+  depths = defaultdict(dict)
+  depths[entry_id]["initial condition"] = 0
+  while file_ids_to_visit:
+    cur_file_id = file_ids_to_visit.popleft()
+    cur_file = nodes[cur_file_id]
+    print cur_file_id, depths[cur_file_id]
+    assert len(set(depths[cur_file_id].values())) <= 1, print_depth_error(cur_file_id, depths)
+    cur_depth = depths[cur_file_id].itervalues().next()
+    for dep_id, path in cur_file.deps.iteritems():
+      if not path.startswith("."):
+        continue
+      dep = nodes[dep_id]
+      depth = (
+        cur_depth
+        + folder_module.depth_diff(path)
+        + (1 if dep.is_index else 0)
+        + (1 if cur_file.is_index else 0)
+      )
+      if depths[dep_id].get(cur_file_id) is None:
+        depths[dep_id][cur_file_id] = depth
+        file_ids_to_visit.append(dep_id)
+  # for k, v in sorted(depths.iteritems()):
+  #   if len(v) > 1:
+  #     print k, v.values()
+
+
+depth_check()
+
 ####################
 # Building of Tree #
 ####################
 
+headerstr("building the tree")
 # build the tree of things in the root
 #   - keep a list of node modules, but don't start on them quite yet.
 
@@ -221,48 +276,3 @@ for cur_node_id, cur_node in nodes.iteritems():
 runner(**locals())
 
 
-
-
-
-
-
-"""
-I know that 463 is an index.
-
-In [5]: nodes[463].deps
-Out[5]:
-{261: u'../../libs/prime/defer',
- 262: u'../../libs/prime/emitter',
- 263: u'../../libs/prime',
- 465: u'./util/ordered-set',
- 466: u'./util/parser',
- 467: u'./util/throttle',
- 491: u'../spotify-range2',
- 517: u'debug',
- 583: u'mout/array/combine',
- 586: u'mout/array/difference',
- 589: u'mout/array/filter',
- 604: u'mout/array/map',
- 643: u'mout/lang/isPlainObject',
- 645: u'mout/lang/isRegExp',
- 656: u'mout/object/deepMixIn',
- 678: u'mout/object/pick',
- 692: u'mout/string/escapeRegExp'}
-
-In [6]: nodes[465].refs
-Out[6]: {463: u'./util/ordered-set'}
-
-In [7]: nodes[466].refs
-Out[7]:
-{267: u'../spotify-live/util/parser',
- 448: u'../spotify-live/util/parser',
- 463: u'./util/parser'}
-
-In [8]: nodes[467].refs
-Out[8]: {463: u'./util/throttle'}
-
-
-I know the name of 463 is spotify-live
-the dep on 463 -> 466 and the face that refs is the way it is should be enough to figure out that it's an index.
-
-"""
