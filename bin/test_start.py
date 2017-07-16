@@ -179,9 +179,32 @@ def check_for_folder_duplication(cur_node_id, cur_node, nodes=nodes):
           print cyan("is index - found a local path with matching ancestor"), cur_node.name, cur_node.id
           return
 
+def check_for_sibling_isolation(cur_node_id, cur_node, nodes=nodes):
+  # all sibling dependencies are only referred to locallay
+  siblings = [
+    nodes[dep_id] for
+    dep_id, dep_path in cur_node.deps.iteritems()
+    if dep_path.startswith('./') and len(dep_path.split('/')) == 2
+  ]
+  if len(set(sum([sib.refs.keys() for sib in siblings],[]))) != 1:
+    return # "i'm not the only parent"
+  if siblings:
+    sib_paths = sum([sib.refs.values() for sib in siblings], [])
+    if all(
+      sib_path.startswith("./") and len(sib_path.split("/")) == 2
+      for sib_path in sib_paths
+      ):
+      cur_node.is_index = True
+      cur_node.name = "index.js"
+      print green("is index - all siblings are unique decendant"), cur_node.id
+
 for cur_node_id, cur_node in nodes.iteritems():
-  check_for_index_ref(cur_node_id, cur_node)
-  check_for_folder_duplication(cur_node_id, cur_node)
+  if cur_node.is_index is None:
+    check_for_index_ref(cur_node_id, cur_node)
+  if cur_node.is_index is None:
+    check_for_folder_duplication(cur_node_id, cur_node)
+  if cur_node.is_index is None:
+    check_for_sibling_isolation(cur_node_id, cur_node)
 
 headerstr("doing a depth check")
 
@@ -191,30 +214,33 @@ def print_depth_error(cur_file_id, depths):
   for id, d in sorted(cur_depths.iteritems(), key=lambda p: p[1]):
     ref = depths[id]
     path = nodes[id].deps[cur_file_id]
+    refs = {nodes[k].name + "%d" % k: v for k, v in nodes[id].refs.iteritems()}
     spc = '\n          '
     name = nodes[id].name
-    to_ret.append("id: {id:4} {name} {spc}depth: {d:2} {spc}{ref}{spc}{path}".format(**locals()))
+    to_ret.append("id: {id:4} {name} {spc}depth: {d:2} {spc}{refs}{spc}{ref}{spc}{path}".format(**locals()))
   return '\n'.join(to_ret)
+
+def min_max(l):
+  return (max(e[0] for e in l), min(e[1] for e in l))
 
 def depth_check(nodes=nodes, entry_id=entry_node.id):
   file_ids_to_visit = deque([entry_id])
   depths = defaultdict(dict)
-  depths[entry_id]["initial condition"] = 0
+  depths[entry_id]["initial condition"] = (0, 0)
   while file_ids_to_visit:
     cur_file_id = file_ids_to_visit.popleft()
     cur_file = nodes[cur_file_id]
-    print cur_file_id, depths[cur_file_id]
-    assert len(set(depths[cur_file_id].values())) <= 1, print_depth_error(cur_file_id, depths)
-    cur_depth = depths[cur_file_id].itervalues().next()
+    cur_depth = min_max(depths[cur_file_id].values())
+    assert cur_depth[0] <= cur_depth[1], print_depth_error(cur_file_id, depths)
     for dep_id, path in cur_file.deps.iteritems():
       if not path.startswith("."):
         continue
       dep = nodes[dep_id]
       depth = (
-        cur_depth
-        + folder_module.depth_diff(path)
-        + (1 if dep.is_index else 0)
-        + (1 if cur_file.is_index else 0)
+        cur_depth[0] + folder_module.depth_diff(path),
+        cur_depth[1] + folder_module.depth_diff(path) + 2
+         - (1 if dep.is_index == False else 0)
+         - (1 if cur_file.is_index == False else 0)
       )
       if depths[dep_id].get(cur_file_id) is None:
         depths[dep_id][cur_file_id] = depth
@@ -233,30 +259,33 @@ depth_check()
 headerstr("building the tree")
 # build the tree of things in the root
 #   - keep a list of node modules, but don't start on them quite yet.
+def build_tree():
+  node_module_file_ids = set()
+  file_ids_to_visit = deque([entry_node.id])
+  while file_ids_to_visit:
+    cur_file_id = file_ids_to_visit.popleft()
+    cur_file = nodes[cur_file_id]
+    print cyan("visiting %s" % cur_file)
+    print "  %d left in file_ids_to_visit" % len(file_ids_to_visit)
+    print "  %d/%d placed" % (len(placed_file_ids), len(nodes) - len(node_module_file_ids))
+    for dep_id, path in cur_file.deps.iteritems():
+      print green("  current dep"), dep_id, path
+      cur_dep = nodes[dep_id]
+      if cur_dep.id in placed_file_ids:
+        print red("    (seen)")
+        pass
+      elif path.startswith("."):
+        file_ids_to_visit.append(cur_dep.id)
+        folder_module.add_file_by_path(
+          cur_file.folder, path, cur_dep
+        )
+        placed_file_ids.add(cur_dep.id)
+        print green("  cur dep placement:"), cur_dep
+      else:
+        node_module_file_ids.add(cur_dep.id)
+        print red("  skipping %s" % path)
 
-# node_module_file_ids = set()
-# file_ids_to_visit = deque([entry_node.id])
-# while file_ids_to_visit:
-#   cur_file_id = file_ids_to_visit.popleft()
-#   cur_file = nodes[cur_file_id]
-#   print cyan("visiting %s" % cur_file)
-#   print "  %d left in file_ids_to_visit" % len(file_ids_to_visit)
-#   print "  %d/%d placed" % (len(placed_file_ids), len(nodes))
-#   for dep_id, path in cur_file.deps.iteritems():
-#     print green("  current dep"), dep_id, path
-#     cur_dep = nodes[dep_id]
-#     if cur_dep.id in placed_file_ids:
-#       print red("    (seen)")
-#       pass
-#     elif path.startswith("."):
-#       file_ids_to_visit.append(cur_dep.id)
-#       folder_module.add_file_by_path(
-#         cur_file.folder, path, cur_dep
-#       )
-#       placed_file_ids.add(cur_dep.id)
-#       print green("  cur dep placement:"), cur_dep
-#     else:
-#       print red("  skipping %s" % path)
+build_tree()
 
 # build anything in "node_modules"
 # we can't do this first because things that /are/ node modules reference their own environments
