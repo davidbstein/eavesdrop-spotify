@@ -1,7 +1,7 @@
 import colors
 
 
-VERBOSE = True
+VERBOSE = False
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
