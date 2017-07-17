@@ -8,7 +8,7 @@ from collections import (
 import file as file_module
 import folder as folder_module
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -74,6 +74,7 @@ def check_for_folder_duplication(cur_node_id, cur_node, nodes):
           log(cyan("is index - found a local path with matching ancestor"), cur_node.name, cur_node.id)
           return
 
+# TODO: build_util.check_for_sibling_isolation(101, nodes[101], nodes) should set node 101 to be an index in settings.spa
 def check_for_sibling_isolation(cur_node_id, cur_node, nodes):
   # all sibling dependencies are only referred to locallay
   siblings = [

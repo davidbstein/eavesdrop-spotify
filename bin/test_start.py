@@ -13,7 +13,7 @@
 
 from colors import *
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -107,6 +107,7 @@ def organize_nodes(nodes):
   log(yellow('files in other node_module envs'), len(sub_node_modules))
 
 
+# build_util.check_for_sibling_isolation(101, nodes[101], nodes) should set node 101 to be an index in settings.spa
 # for target_spa in os.listdir('../unbundled'):
 for target_spa in ['settings.spa']:
   try:
