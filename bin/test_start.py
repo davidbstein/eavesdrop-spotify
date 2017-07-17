@@ -13,7 +13,7 @@
 
 from colors import *
 
-VERBOSE = True
+VERBOSE = False
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -108,9 +108,12 @@ def organize_nodes(nodes):
 
 
 # for target_spa in os.listdir('../unbundled'):
-for target_spa in ['album.spa']:
+for target_spa in ['settings.spa']:
   try:
     print headerstr(target_spa)
+    if "unbundled.json" not in os.listdir("../unbundled/%s" % (target_spa, )):
+      print yellow("there is no unbundled.json")
+      continue
     target = '../unbundled/%s/unbundled.json' % (target_spa, )
     raw_nodes = file_parser.parse_file(target)
     nodes = {

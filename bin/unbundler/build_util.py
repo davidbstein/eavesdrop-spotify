@@ -8,7 +8,7 @@ from collections import (
 import file as file_module
 import folder as folder_module
 
-VERBOSE = True
+VERBOSE = False
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))

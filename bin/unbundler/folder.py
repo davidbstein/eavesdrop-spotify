@@ -1,6 +1,12 @@
 import colors
 
 
+VERBOSE = False
+def log(*s):
+  if VERBOSE:
+    print ' '.join(map(str, s))
+
+
 class FolderNode(object):
   def __init__(self, name, trunk_depth=None, parent=None):
     """
@@ -32,9 +38,8 @@ class FolderNode(object):
     if to_ret:
       return to_ret
     elif create:
-      print str(name)
       new_folder = self._add_folder(FolderNode(name))
-      # print " `--> created ", new_folder
+      log(" `--> created ", new_folder)
       return new_folder
     else:
       return None
@@ -136,7 +141,7 @@ def add_file_by_path(start, path, file):
   if not file.name.endswith(".js"):
     file.name += ".js"
   for part in path_parts:
-    # print "--> cur, part:", cur, part
+    log("--> cur, part:", cur, part)
     if part == ".":
       cur = cur
     elif part == "..":
