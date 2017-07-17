@@ -5,7 +5,7 @@
 #   with open('test_start.py') as f:
 #     log(f.read())
 
-# you've probably ran this script with run with
+# i run often this script with run with
 #
 # ```
 #    while [ true ]; do ipython -i test_start.py; clear; done;
@@ -16,9 +16,9 @@ def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
 
-#####################
-# The script, woot. #
-#####################
+###############
+# helper junk #
+###############
 
 from unbundler import (
   file_parser,
@@ -47,10 +47,6 @@ def headerstr(s, colorize=magenta):
   to_ret = '\n'.join(to_ret)
   log(to_ret)
   return to_ret
-
-####################
-# parse file nodes #
-####################
 
 
 def organize_nodes(nodes):
@@ -107,9 +103,45 @@ def organize_nodes(nodes):
     'node_modules_root': node_modules_root,
   }
 
+def _recursive_build(r, path_prefix):
+  # os.makedirs(path_prefix + r.get_path())
+  for file in r._files.itervalues():
+    file_path = path_prefix + file.get_path()
+    if not os.path.exists(file_path):
+      os.makedirs(file_path)
+    target = file_path+"/"+file.name
+    with codecs.open(target, 'wb', 'utf-8') as f:
+      f.write("// the following file was decompiled from a bundle\n")
+      f.write("// with reference id %d\n" % file.id)
+      f.write(file.source)
+  for sub in r._children.itervalues():
+    _recursive_build(sub, path_prefix)
+
+def write_files(**kw):
+  headerstr("writing to the filesystem")
+  locals().update(kw)
+  output_location = '/tmp/test_folder'
+  try:
+    shutil.rmtree(output_location)
+  except:
+    log("can't remove %s" % output_location)
+  os.makedirs(output_location)
+  # for node in nodes.itervalues():
+  #   target = prefix[:-4] + '%s.js' % node.id
+  #   with codecs.open(target, 'wb', 'utf-8') as f:
+  #     f.write(node.source)
+  _recursive_build(source_root, output_location + "/src/")
+  _recursive_build(node_modules_root, output_location + "/")
+
+
 ########################
 ## Load files and run ##
 ########################
+
+# there's something wrong. check out album.spa node modules
+# rambda/src/pluck should not be an index
+# I can add a check for this by following every path
+# and raising errors on a non-collision of identical files.
 
 # for target_spa in os.listdir('../unbundled'):
 for target_spa in ['album.spa']:
@@ -133,40 +165,4 @@ for target_spa in ['album.spa']:
       print node
       print node.refs
 
-###############
-## Test crap ##
-###############
-
-
-def _recursive_build(r, path_prefix):
-  # os.makedirs(path_prefix + r.get_path())
-  for file in r._files.itervalues():
-    file_path = path_prefix + file.get_path()
-    if not os.path.exists(file_path):
-      os.makedirs(file_path)
-    target = file_path+"/"+file.name
-    with codecs.open(target, 'wb', 'utf-8') as f:
-      f.write("// the following file was decompiled from a bundle\n")
-      f.write("// with reference id %d\n" % file.id)
-      f.write(file.source)
-  for sub in r._children.itervalues():
-    _recursive_build(sub, path_prefix)
-
-def runner(**kw):
-  headerstr("writing to the filesystem")
-  locals().update(kw)
-  output_location = '/tmp/test_folder'
-  try:
-    shutil.rmtree(output_location)
-  except:
-    log("can't remove %s" % output_location)
-  os.makedirs(output_location)
-  # for node in nodes.itervalues():
-  #   target = prefix[:-4] + '%s.js' % node.id
-  #   with codecs.open(target, 'wb', 'utf-8') as f:
-  #     f.write(node.source)
-  _recursive_build(source_root, output_location + "/src/")
-  _recursive_build(node_modules_root, output_location + "/")
-
-
-runner(**locals())
+write_files(**locals())
