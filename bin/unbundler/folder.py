@@ -33,7 +33,7 @@ class FolderNode(object):
       return to_ret
     elif create:
       new_folder = self._add_folder(FolderNode(name))
-      print " `--> created ", new_folder
+      # print " `--> created ", new_folder
       return new_folder
     else:
       return None
@@ -75,6 +75,22 @@ class FolderNode(object):
   def print_contents(self, indent=0, files=True):
     pass
 
+  def print_subtree(self):
+    spacer = colors.green("  |")
+    filetag = colors.green("--- ")
+    def recursive_print(folder, depth=0):
+      gap = spacer * depth
+      print "{gap}\033[00m\033[32;1m{fname}/\033[00m".format(
+        gap=gap[:-6], fname=folder._name
+      )
+      for subfolder in sorted(folder._children.itervalues(), key=lambda x: x._name):
+        recursive_print(subfolder, depth+1)
+      for file in sorted(folder._files.itervalues(), key=lambda x: x.name):
+        print "{gap}{filetag}({id}) {name}".format(
+          gap=gap, filetag=filetag, id=file.id, name=file.name
+        )
+    recursive_print(self)
+
   def __repr__(self):
     return "<FolderNode %s>" % self.get_path()
 
@@ -94,20 +110,7 @@ class FolderTree(object):
     return root
 
   def print_root(self):
-    spacer = colors.green("  |")
-    filetag = colors.green("--- ")
-    def recursive_print(folder, depth=0):
-      gap = spacer * depth
-      print "{gap}\033[00m\033[32;1m{fname}/\033[00m".format(
-        gap=gap[:-6], fname=folder._name
-      )
-      for subfolder in sorted(folder._children.itervalues(), key=lambda x: x._name):
-        recursive_print(subfolder, depth+1)
-      for file in sorted(folder._files.itervalues(), key=lambda x: x.name):
-        print "{gap}{filetag}({id}) {name}".format(
-          gap=gap, filetag=filetag, id=file.id, name=file.name
-        )
-    recursive_print(self.get_root())
+    self.get_root().print_subtree()
 
 
 
@@ -124,7 +127,6 @@ def depth_diff(path):
 def add_file_by_path(start, path, file):
   path_parts = path.split('/')
   cur = start
-  print file.is_index
   if not file.is_index:
     file.name = path_parts[-1]
     path_parts = path_parts[:-1]
@@ -141,4 +143,3 @@ def add_file_by_path(start, path, file):
     else:
       cur = cur.get_folder(part, create=True)
   cur.add_file(file)
-  print "  --> added %s/%s" % (file.get_path(), file.name)

@@ -7,7 +7,7 @@ cd $DIR/..
 mkdir unbundled
 pwd
 
-for rawfolder_name in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/artist*;
+for rawfolder_name in $DIR/../SpotifyEavesdrop.app/Contents/Resources/Apps/*;
 do
   folder_name=$(echo $rawfolder_name | tr "/" "\n" | tail -n1)
   cd $DIR/../unbundled
@@ -16,7 +16,7 @@ do
   echo
   echo "unwrapping $folder_name"
   ../../node_modules/browser-unpack/bin/cmd.js < bundle.js > unbundled.json
-  python ../../bin/unpack_bundle.py run
+  # python ../../bin/unpack_bundle.py run
 done
 
 popd
