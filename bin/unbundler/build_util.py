@@ -110,29 +110,6 @@ def _print_depth_error(cur_file_id, depths):
 def min_max(l):
   return (max(e[0] for e in l), min(e[1] for e in l))
 
-def depth_check(nodes, entry_id):
-  file_ids_to_visit = deque([entry_id])
-  depths = defaultdict(dict)
-  depths[entry_id]["initial condition"] = (0, 0)
-  while file_ids_to_visit:
-    cur_file_id = file_ids_to_visit.popleft()
-    cur_file = nodes[cur_file_id]
-    cur_depth = min_max(depths[cur_file_id].values())
-    assert cur_depth[0] <= cur_depth[1], _print_depth_error(cur_file_id, depths)
-    for dep_id, path in cur_file.deps.iteritems():
-      if not path.startswith("."):
-        continue
-      dep = nodes[dep_id]
-      depth = (
-        cur_depth[0] + folder_module.depth_diff(path),
-        cur_depth[1] + folder_module.depth_diff(path) + 2
-         - (1 if dep.is_index == False else 0)
-         - (1 if cur_file.is_index == False else 0)
-      )
-      if depths[dep_id].get(cur_file_id) is None:
-        depths[dep_id][cur_file_id] = depth
-        file_ids_to_visit.append(dep_id)
-
 def build_tree(nodes, entry_node_ids):
   placed_file_ids = set()
   node_module_file_ids = set()

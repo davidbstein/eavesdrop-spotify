@@ -13,7 +13,7 @@
 
 from colors import *
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -36,12 +36,12 @@ from collections import (
   defaultdict,
 )
 
-def headerstr(s):
+def headerstr(s, colorize=magenta):
   to_ret = []
   to_ret.append("")
-  to_ret.append(magenta("#" * (len(s) + 4)))
-  to_ret.append(magenta("# %s #" % s))
-  to_ret.append(magenta("#" * (len(s) + 4)))
+  to_ret.append(colorize("#" * (len(s) + 4)))
+  to_ret.append(colorize("# %s #" % s))
+  to_ret.append(colorize("#" * (len(s) + 4)))
   to_ret.append("")
   to_ret = '\n'.join(to_ret)
   log(to_ret)
@@ -54,12 +54,9 @@ def headerstr(s):
 
 def organize_nodes(nodes):
   headerstr("setup")
-
-  # create "root" folder and "node_modules" folder
   main_root = folder_module.FolderNode("_trunk_1", trunk_depth=1)
   main_node_root = folder_module.FolderNode("node_modules")
   folder_tree = folder_module.FolderTree(main_root, main_node_root)
-
   entry_node_container = [
     node for node in nodes.itervalues() if node.entry
   ]
@@ -67,11 +64,9 @@ def organize_nodes(nodes):
   entry_node = entry_node_container[0]
   entry_node.name = "entry.js"
   entry_node.is_index = False
-
   folder_tree.set_entry(entry_node)
 
   headerstr("finding which files are index.js")
-
   for cur_node_id, cur_node in nodes.iteritems():
     if cur_node.is_index is None:
       build_util.check_for_index_ref(cur_node_id, cur_node, nodes)
@@ -80,25 +75,16 @@ def organize_nodes(nodes):
     if cur_node.is_index is None:
       build_util.check_for_sibling_isolation(cur_node_id, cur_node, nodes)
 
-  headerstr("doing a depth check")
-
-  build_util.depth_check(nodes=nodes, entry_id=entry_node.id)
-
   headerstr("building the tree")
-
   main_build_result = build_util.build_tree(
     nodes=nodes,
     entry_node_ids=[entry_node.id]
   )
   placed_file_ids = main_build_result['placed_file_ids']
   node_module_file_ids = main_build_result['node_module_file_ids']
-
   root_node_module_files = build_util.get_local_reachable(
     nodes, node_module_file_ids
   )
-
-  log('root node module files', root_node_module_files)
-
   sub_node_modules = set(nodes) - placed_file_ids - root_node_module_files
 
   log(yellow('nodes'), len(nodes))
@@ -106,11 +92,14 @@ def organize_nodes(nodes):
   log(yellow('files in primary node_module env'), len(root_node_module_files))
   log(yellow('files in other node_module envs'), len(sub_node_modules))
 
+########################
+## Load files and run ##
+########################
 
-for target_spa in os.listdir('../unbundled'):
-# for target_spa in ['settings.spa']:
+# for target_spa in os.listdir('../unbundled'):
+for target_spa in ['album.spa']:
   try:
-    print headerstr(target_spa)
+    print headerstr(target_spa, colorize=cyan)
     if "unbundled.json" not in os.listdir("../unbundled/%s" % (target_spa, )):
       print yellow("there is no unbundled.json")
       continue
@@ -127,9 +116,6 @@ for target_spa in os.listdir('../unbundled'):
     import traceback
     print red("error")
     traceback.print_exc()
-
-print headerstr("sib jeck")
-build_util.check_for_sibling_isolation(101, nodes[101], nodes)
 
 ###############
 ## Test crap ##
