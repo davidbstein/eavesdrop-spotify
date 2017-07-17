@@ -8,7 +8,7 @@ from collections import (
 import file as file_module
 import folder as folder_module
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -28,6 +28,14 @@ def check_for_index_ref(cur_node_id, cur_node, nodes):
     cur_node.name = list(names)[0]
 
     log(yellow("not index - has a '.js' ref"), cur_node.id)
+  if any(r.endswith("/") for r in cur_node.refs.itervalues()):
+    for ref_id, ref_path in cur_node.refs.iteritems():
+      if ref_path.endswith("/"):
+        # fix trailing slash OMG what.
+        cur_node.refs[ref_id] = cur_node.refs[ref_id][:-1]
+        nodes[ref_id].deps[cur_node_id] = cur_node.refs[ref_id][:-1]
+      cur_node.is_index = True
+      cur_node.name = "index.js"
   if len(names) == 2:
     assert "index.js" in names or "source.js" in names
     cur_node.is_index = True

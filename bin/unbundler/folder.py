@@ -32,6 +32,7 @@ class FolderNode(object):
     if to_ret:
       return to_ret
     elif create:
+      print str(name)
       new_folder = self._add_folder(FolderNode(name))
       # print " `--> created ", new_folder
       return new_folder
@@ -57,7 +58,7 @@ class FolderNode(object):
     assert file_name in files
 
   def _add_folder(self, folder_node):
-    assert folder_node._name
+    assert folder_node._name, folder_node
     assert folder_node._name not in self._children
     assert folder_node._parent == None
     folder_node._parent = self

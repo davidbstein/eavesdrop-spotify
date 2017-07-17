@@ -13,7 +13,7 @@
 
 from colors import *
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -52,15 +52,8 @@ def headerstr(s):
 ####################
 
 
-def parse_bundle(target):
+def organize_nodes(nodes):
   headerstr("setup")
-
-  raw_nodes = file_parser.parse_file(target)
-  nodes = {
-    k: file_module.MetaFileNode(n)
-    for k, n in raw_nodes.iteritems()
-  }
-  log("%d nodes" % len(nodes))
 
   # create "root" folder and "node_modules" folder
   main_root = folder_module.FolderNode("_trunk_1", trunk_depth=1)
@@ -114,12 +107,19 @@ def parse_bundle(target):
   log(yellow('files in other node_module envs'), len(sub_node_modules))
 
 
-for target_spa in os.listdir('../unbundled'):
-# for target_spa in ['album.spa']:
+# for target_spa in os.listdir('../unbundled'):
+for target_spa in ['album.spa']:
   try:
     print headerstr(target_spa)
-    target = '../unbundled/{target_spa}/unbundled.json'.format(**locals())
-    parse_bundle(target)
+    target = '../unbundled/%s/unbundled.json' % (target_spa, )
+    raw_nodes = file_parser.parse_file(target)
+    nodes = {
+      k: file_module.MetaFileNode(n)
+      for k, n in raw_nodes.iteritems()
+    }
+    log("%d nodes" % len(nodes))
+
+    organize_nodes(nodes)
   except:
     import traceback
     print red("error")
