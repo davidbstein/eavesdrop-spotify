@@ -52,7 +52,10 @@ class FolderNode(object):
 
   def add_file(self, file_node):
     assert file_node.name
-    assert file_node.name not in self._files, \
+    assert (
+      file_node.name not in self._files or
+      file_node == self._files[file_node.name]
+      ), \
       "\n --".join(map(str, [
         self._files.keys(), file_node, self._files[file_node.name]
       ]))

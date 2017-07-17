@@ -95,6 +95,13 @@ def check_for_sibling_isolation(cur_node_id, cur_node, nodes):
       cur_node.name = "index.js"
       log(green("is index - all siblings are unique decendant"), cur_node.id)
 
+def check_for_node_root(cur_node_id, cur_node, nodes):
+  for path in cur_node.refs.itervalues():
+    if "/" not in path:
+      cur_node.is_index = True
+      cur_node.name = "index.js"
+      return
+
 def _print_depth_error(cur_file_id, depths):
   to_ret = ['file %d has inconsistent depths' % cur_file_id,'depths:']
   cur_depths = depths[cur_file_id]
@@ -141,16 +148,28 @@ def build_tree(nodes, entry_node_ids):
     "node_module_file_ids": node_module_file_ids,
   }
 
-def build_node_modules(nodes, referenceing_node_ids, reachable_node_ids, entry_ids):
+def build_node_modules(nodes, referenced_node_ids, reachable_node_ids):
   """
-    referencing nodes: nodes that reference modules from outside of scope
+    referenced nodes: nodes that are referenced from outside of scope and are therefore in the root node_modules folder
 
-    reachable nodes: exactly all of these should be placed
+    reachable nodes: all of these should be placed relative to the root, others should be placed in local environments.
 
-    entry_ids: these can be placed without tracing any paths.
   """
   # reachable node ids are ones that are imported by src and are not local to a specific node. this isn't actually right, many node_modules may import from a shared node module, but it'll have to do until I can figure out detecting versions. This will at least not break, though it may unneccessarily duplicate file.
-  pass
+  node_root = folder_module.FolderNode("node_modules")
+  root_node_module_members = defaultdict(set)
+  for node_id in referenced_node_ids:
+    node = nodes[node_id]
+    paths = set(path for path in node.refs.itervalues() if not path.startswith("."))
+    assert len(paths) == 1
+    path = paths.pop()
+    folder_module.add_file_by_path(node_root, path, node)
+    module = path.split("/")[0]
+    root_node_module_members[module].add(node_id)
+  # pleace the reachable nodes
+  build_tree(nodes, referenced_node_ids)
+  # place the sub-node-modules
+  return node_root
 
 
 def get_local_reachable(nodes, start_ids):
