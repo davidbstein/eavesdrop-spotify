@@ -117,10 +117,8 @@ def _recursive_build(r, path_prefix):
   for sub in r._children.itervalues():
     _recursive_build(sub, path_prefix)
 
-def write_files(**kw):
+def write_files(source_root, node_modules_root, output_location='/tmp/test_folder'):
   headerstr("writing to the filesystem")
-  locals().update(kw)
-  output_location = '/tmp/test_folder'
   try:
     shutil.rmtree(output_location)
   except:
@@ -132,6 +130,28 @@ def write_files(**kw):
   #     f.write(node.source)
   _recursive_build(source_root, output_location + "/src/")
   _recursive_build(node_modules_root, output_location + "/")
+
+
+def build_unbundle(unbundle_location)
+  target = unbundle_location
+  raw_nodes = file_parser.parse_file(target)
+  nodes = {
+    k: file_module.MetaFileNode(n)
+    for k, n in raw_nodes.iteritems()
+  }
+  log(yellow("%d nodes" % len(nodes)))
+
+  organized_nodes = organize_nodes(nodes)
+  source_root = organized_nodes['source_root']
+  node_modules_root = organized_nodes['node_modules_root']
+
+  write_files(source_root, node_modules_root)
+
+  for node_id, node in nodes.iteritems():
+    if node.get_path() == "<UNKNOWN PATH>":
+      print red("UNKNOWN PATH LEFT")
+      print node
+      print node.refs
 
 
 ########################
@@ -148,21 +168,5 @@ for target_spa in ['album.spa']:
   if "unbundled.json" not in os.listdir("../unbundled/%s" % (target_spa, )):
     log(yellow("there is no unbundled.json, skipping"))
     continue
-  target = '../unbundled/%s/unbundled.json' % (target_spa, )
-  raw_nodes = file_parser.parse_file(target)
-  nodes = {
-    k: file_module.MetaFileNode(n)
-    for k, n in raw_nodes.iteritems()
-  }
-  log("%d nodes" % len(nodes))
+  build_unbundle('../unbundled/%s/unbundled.json' % (target_spa, ))
 
-  organized_nodes = organize_nodes(nodes)
-  source_root = organized_nodes['source_root']
-  node_modules_root = organized_nodes['node_modules_root']
-  for node_id, node in nodes.iteritems():
-    if node.get_path() == "<UNKNOWN PATH>":
-      print red("UNKNOWN PATH LEFT")
-      print node
-      print node.refs
-
-write_files(**locals())
