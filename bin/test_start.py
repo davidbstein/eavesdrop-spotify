@@ -50,6 +50,15 @@ def headerstr(s, colorize=magenta):
 
 
 def organize_nodes(nodes):
+  """
+  nodes - a node has
+    deps: child_id: path
+    refs: parent_id: path
+
+  if we can set
+    node.is_index = True
+    node.is_index = False
+  """
   headerstr("setup")
   main_root = folder_module.FolderNode("_trunk_1", trunk_depth=1)
   main_node_root = folder_module.FolderNode("node_modules")
@@ -63,35 +72,39 @@ def organize_nodes(nodes):
   entry_node.is_index = False
   source_tree.set_entry(entry_node)
 
-  headerstr("finding which files are index.js")
+  headerstr("build src/")
+
   for cur_node_id, cur_node in nodes.iteritems():
     check_args = cur_node_id, cur_node, nodes
     if cur_node.is_index is None:
       build_util.check_for_index_ref(*check_args)
-    if cur_node.is_index is None:
-      build_util.check_for_folder_duplication(*check_args)
-    if cur_node.is_index is None:
-      build_util.check_for_sibling_isolation(*check_args)
-    if cur_node.is_index is None:
-      build_util.check_for_node_root(*check_args)
-
-  headerstr("building the tree")
+  src_nodes = build_util.get_local_reachable(
+    nodes, [entry_node.id]
+  )
+  index_ids = build_util.solve_for_index_ids(
+    src_nodes,
+    entry_node.id,
+    node_map=nodes
+  )
   main_build_result = build_util.build_tree(
     nodes=nodes,
     entry_node_ids=[entry_node.id]
   )
   placed_file_ids = main_build_result['placed_file_ids']
   node_module_file_ids = main_build_result['node_module_file_ids']
+
+  headerstr("building node_modules")
   root_node_module_files = build_util.get_local_reachable(
     nodes, node_module_file_ids
   )
   sub_node_modules = set(nodes) - placed_file_ids - root_node_module_files
 
-  node_modules_root = build_util.build_node_modules(
-    nodes,
-    node_module_file_ids,
-    root_node_module_files,
-  )
+  node_modules_root = None
+  # node_modules_root = build_util.build_node_modules(
+  #   nodes,
+  #   node_module_file_ids,
+  #   root_node_module_files,
+  # )
 
   log(yellow('nodes'), len(nodes))
   log(yellow('src files'), len(placed_file_ids))
@@ -124,15 +137,11 @@ def write_files(source_root, node_modules_root, output_location='/tmp/test_folde
   except:
     log("can't remove %s" % output_location)
   os.makedirs(output_location)
-  # for node in nodes.itervalues():
-  #   target = prefix[:-4] + '%s.js' % node.id
-  #   with codecs.open(target, 'wb', 'utf-8') as f:
-  #     f.write(node.source)
   _recursive_build(source_root, output_location + "/src/")
-  _recursive_build(node_modules_root, output_location + "/")
+  # _recursive_build(node_modules_root, output_location + "/")
 
 
-def build_unbundle(unbundle_location)
+def build_unbundle(unbundle_location):
   target = unbundle_location
   raw_nodes = file_parser.parse_file(target)
   nodes = {
@@ -153,6 +162,7 @@ def build_unbundle(unbundle_location)
       print node
       print node.refs
 
+  return locals()
 
 ########################
 ## Load files and run ##
@@ -168,5 +178,6 @@ for target_spa in ['album.spa']:
   if "unbundled.json" not in os.listdir("../unbundled/%s" % (target_spa, )):
     log(yellow("there is no unbundled.json, skipping"))
     continue
-  build_unbundle('../unbundled/%s/unbundled.json' % (target_spa, ))
-
+  locals().update(
+    build_unbundle('../unbundled/%s/unbundled.json' % (target_spa, ))
+  )

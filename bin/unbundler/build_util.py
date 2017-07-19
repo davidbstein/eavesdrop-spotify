@@ -7,6 +7,7 @@ from collections import (
 )
 import file as file_module
 import folder as folder_module
+import z3 # pip install z3-solver
 
 VERBOSE = False
 def log(*s):
@@ -19,6 +20,63 @@ def _name_parse(r):
     return s
   else:
     return s + ".js"
+
+class IntDict(dict):
+  def __missing__(self, key):
+    self[key] = z3.Int(key)
+    return self[key]
+
+def _print_model(model, node_ids, IsIndex, node_map):
+  print "\n -- ".join([
+    "(%d) %s" % (node_id, node_map[node_id].name)
+    for node_id in node_ids
+    if str(model.eval(IsIndex(node_id))) == "1"
+  ])
+
+def solve_for_index_ids(node_ids, entry_id, node_map):
+  log("setting up sat problem")
+  X = IntDict()
+  IsIndex = lambda id: X['N%d' % id]
+  Depth = lambda id: X['D%d' % id]
+  Edge = lambda id_a, id_b: X['E%d_%d' % (id_a, id_b)]
+  solver = z3.Solver()
+  solver.add(
+    IsIndex(entry_id) == 0,
+    Depth(entry_id) == 0,
+  )
+  for node_id in node_ids:
+    node_is_index = IsIndex(node_id)
+    node_depth = Depth(node_id)
+    solver.add(
+      IsIndex(node_id) >= 0,
+      IsIndex(node_id) <= 1,
+    )
+  for i, node_id in enumerate(list(node_ids)):
+    log(i, len(node_ids))
+    node = node_map[node_id]
+    log(cyan(node), node.refs)
+    for dep_id, dep_path in node.deps.iteritems():
+      if dep_id in node_ids:
+        ddiff = folder_module.depth_diff(dep_path)
+        log(dep_path, '-', ddiff)
+        edge = Edge(node_id, dep_id)
+        solver.add(edge == ddiff)
+        solver.add(
+          Depth(node.id) + Edge(node_id, dep_id) + IsIndex(dep_id) == Depth(dep_id)
+        )
+      # if str(solver.check()) != "sat":
+        # log(node)
+        # log(solver.check())
+        # log(solver)
+      # _print_model(solver.model(), node_ids, IsIndex, node_map)
+  assert str(solver.check()) == "sat"
+  model = solver.model()
+  for node_id in node_ids:
+    cur_node = node_map[node_id]
+    if str(model.eval(IsIndex(node_id))) == "1":
+      cur_node.is_index = True
+      cur_node.name = "index.js"
+
 
 def check_for_index_ref(cur_node_id, cur_node, nodes):
   names = set([_name_parse(r) for r in cur_node.refs.itervalues()])

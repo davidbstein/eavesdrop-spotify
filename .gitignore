@@ -4,3 +4,4 @@ unzipped/*
 SpotifyEavesdrop.app
 node_modules/*
 *.pyc
+env/*

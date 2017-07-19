@@ -124,8 +124,12 @@ class FolderTree(object):
 
 
 def depth_diff(path):
+  if path.endswith("/"):
+    path = path[:-1]
   path_parts = path.split('/')[:-1]
   diff = 0
+  if path.split('/')[-1] in ("index", "index.js"):
+    diff -= 1
   for part in path_parts:
     if part == '..':
       diff -= 1
