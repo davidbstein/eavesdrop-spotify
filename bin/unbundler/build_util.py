@@ -9,7 +9,7 @@ import file as file_module
 import folder as folder_module
 import z3 # pip install z3-solver
 
-VERBOSE = False
+VERBOSE = True
 def log(*s):
   if VERBOSE:
     print ' '.join(map(str, s))
@@ -51,8 +51,9 @@ def solve_for_index_ids(node_ids, entry_id, node_map):
       IsIndex(node_id) >= 0,
       IsIndex(node_id) <= 1,
     )
-  for i, node_id in enumerate(list(node_ids)):
-    log(i, len(node_ids))
+  # for i, node_id in enumerate(list(node_ids)):
+  for i, node_id in reversed(list(enumerate(list(node_ids)))):
+    log(i, 'out of', len(node_ids))
     node = node_map[node_id]
     log(cyan(node), node.refs)
     for dep_id, dep_path in node.deps.iteritems():
@@ -64,13 +65,13 @@ def solve_for_index_ids(node_ids, entry_id, node_map):
         solver.add(
           Depth(node.id) + Edge(node_id, dep_id) + IsIndex(dep_id) == Depth(dep_id)
         )
-      # if str(solver.check()) != "sat":
-        # log(node)
+      if str(solver.check()) != "sat":
+        log(node)
         # log(solver.check())
         # log(solver)
-      # _print_model(solver.model(), node_ids, IsIndex, node_map)
   assert str(solver.check()) == "sat"
   model = solver.model()
+  # _print_model(solver.model(), node_ids, IsIndex, node_map)
   for node_id in node_ids:
     cur_node = node_map[node_id]
     if str(model.eval(IsIndex(node_id))) == "1":
@@ -113,45 +114,45 @@ def check_for_index_ref(cur_node_id, cur_node, nodes):
     log(names)
 
 
-def check_for_folder_duplication(cur_node_id, cur_node, nodes):
-  name = cur_node.name[:-len('.js')]
-  for dep_id, dep_path in cur_node.deps.iteritems():
-    dep_node = nodes[dep_id]
-    if dep_path.startswith("./%s/" % name):
-      # this is a module.js that wraps its contents
-      # see npm/mout/object.js for an example
-      cur_node.is_index = False
-      log(cyan("not index - is a module with same-name folder sibling"), cur_node.name, cur_node_id)
-      return
-    for depref_id, depref_path in dep_node.refs.iteritems():
-      if dep_path.startswith("./"):
-        subpath = depref_path[:-len(dep_path) + 1]
-        if subpath.endswith(name):
-          cur_node.is_index = True
-          cur_node.name = 'index.js'
-          log(cyan("is index - found a local path with matching ancestor"), cur_node.name, cur_node.id)
-          return
+# def check_for_folder_duplication(cur_node_id, cur_node, nodes):
+#   name = cur_node.name[:-len('.js')]
+#   for dep_id, dep_path in cur_node.deps.iteritems():
+#     dep_node = nodes[dep_id]
+#     if dep_path.startswith("./%s/" % name):
+#       # this is a module.js that wraps its contents
+#       # see npm/mout/object.js for an example
+#       cur_node.is_index = False
+#       log(cyan("not index - is a module with same-name folder sibling"), cur_node.name, cur_node_id)
+#       return
+#     for depref_id, depref_path in dep_node.refs.iteritems():
+#       if dep_path.startswith("./"):
+#         subpath = depref_path[:-len(dep_path) + 1]
+#         if subpath.endswith(name):
+#           cur_node.is_index = True
+#           cur_node.name = 'index.js'
+#           log(cyan("is index - found a local path with matching ancestor"), cur_node.name, cur_node.id)
+#           return
 
-def check_for_sibling_isolation(cur_node_id, cur_node, nodes):
-  # all sibling dependencies are only referred to locallay
-  siblings = [
-    nodes[dep_id] for
-    dep_id, dep_path in cur_node.deps.iteritems()
-    if dep_path.startswith('./') and len(dep_path.split('/')) == 2
-  ]
-  all_sib_refs = set(sum([sib.refs.keys() for sib in siblings],[]))
-  outside_refs = all_sib_refs - set(s.id for s in siblings) - set([cur_node_id])
-  if len(outside_refs) != 0:
-    return # "i'm not the only parent"
-  if siblings:
-    sib_paths = sum([sib.refs.values() for sib in siblings], [])
-    if all(
-      sib_path.startswith("./") and len(sib_path.split("/")) == 2
-      for sib_path in sib_paths
-      ):
-      cur_node.is_index = True
-      cur_node.name = "index.js"
-      log(green("is index - all siblings are unique decendant"), cur_node.id)
+# def check_for_sibling_isolation(cur_node_id, cur_node, nodes):
+#   # all sibling dependencies are only referred to locallay
+#   siblings = [
+#     nodes[dep_id] for
+#     dep_id, dep_path in cur_node.deps.iteritems()
+#     if dep_path.startswith('./') and len(dep_path.split('/')) == 2
+#   ]
+#   all_sib_refs = set(sum([sib.refs.keys() for sib in siblings],[]))
+#   outside_refs = all_sib_refs - set(s.id for s in siblings) - set([cur_node_id])
+#   if len(outside_refs) != 0:
+#     return # "i'm not the only parent"
+#   if siblings:
+#     sib_paths = sum([sib.refs.values() for sib in siblings], [])
+#     if all(
+#       sib_path.startswith("./") and len(sib_path.split("/")) == 2
+#       for sib_path in sib_paths
+#       ):
+#       cur_node.is_index = True
+#       cur_node.name = "index.js"
+#       log(green("is index - all siblings are unique decendant"), cur_node.id)
 
 def check_for_node_root(cur_node_id, cur_node, nodes):
   for path in cur_node.refs.itervalues():

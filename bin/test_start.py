@@ -78,6 +78,8 @@ def organize_nodes(nodes):
     check_args = cur_node_id, cur_node, nodes
     if cur_node.is_index is None:
       build_util.check_for_index_ref(*check_args)
+    if cur_node.is_index is None:
+      build_util.check_for_node_root(*check_args)
   src_nodes = build_util.get_local_reachable(
     nodes, [entry_node.id]
   )
@@ -141,7 +143,7 @@ def write_files(source_root, node_modules_root, output_location='/tmp/test_folde
   # _recursive_build(node_modules_root, output_location + "/")
 
 
-def build_unbundle(unbundle_location):
+def load_nodes(unbundle_location):
   target = unbundle_location
   raw_nodes = file_parser.parse_file(target)
   nodes = {
@@ -149,6 +151,9 @@ def build_unbundle(unbundle_location):
     for k, n in raw_nodes.iteritems()
   }
   log(yellow("%d nodes" % len(nodes)))
+  return nodes
+
+def build_unbundle(nodes):
 
   organized_nodes = organize_nodes(nodes)
   source_root = organized_nodes['source_root']
@@ -156,11 +161,11 @@ def build_unbundle(unbundle_location):
 
   write_files(source_root, node_modules_root)
 
-  for node_id, node in nodes.iteritems():
-    if node.get_path() == "<UNKNOWN PATH>":
-      print red("UNKNOWN PATH LEFT")
-      print node
-      print node.refs
+  # for node_id, node in nodes.iteritems():
+  #   if node.get_path() == "<UNKNOWN PATH>":
+  #     print red("UNKNOWN PATH LEFT")
+  #     print node
+  #     print node.refs
 
   return locals()
 
@@ -174,10 +179,10 @@ def build_unbundle(unbundle_location):
 # and raising errors on a non-collision of identical files.
 
 # for target_spa in os.listdir('../unbundled'):
-for target_spa in ['album.spa']:
+for target_spa in ['artist.spa']:
+  headerstr(target_spa, colorize=blue)
   if "unbundled.json" not in os.listdir("../unbundled/%s" % (target_spa, )):
     log(yellow("there is no unbundled.json, skipping"))
     continue
-  locals().update(
-    build_unbundle('../unbundled/%s/unbundled.json' % (target_spa, ))
-  )
+  nodes = load_nodes('../unbundled/%s/unbundled.json' % (target_spa, ))
+  build_unbundle(nodes)
