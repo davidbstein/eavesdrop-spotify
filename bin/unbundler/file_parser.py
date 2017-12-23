@@ -12,7 +12,7 @@ unbundled.json must contain a list of
 }
 """
 
-from file_node import FileNode
+from file import FileNode
 import json
 
 def parse_file(file_target="unbundled.json"):
