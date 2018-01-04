@@ -2,7 +2,7 @@ class FileNode(object):
   def __init__(self, id, source, deps, entry=False):
     self._id = id
     self._source = source
-    self._deps = {id: path for path, id in deps.iteritems() if path != "dup"}
+    self._deps = {id: path for path, id in deps.items() if path != "dup"}
     self._dup_id = deps.get("dup", None)
     self._entry = entry
     self._refs = {}

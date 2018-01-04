@@ -1,6 +1,7 @@
-unbundled/*
+_unbundled/*
+unbundled_source/*
 .DS_Store
-unzipped/*
+_unzipped/*
 SpotifyEavesdrop.app
 node_modules/*
 *.pyc

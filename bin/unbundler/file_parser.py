@@ -12,24 +12,24 @@ unbundled.json must contain a list of
 }
 """
 
-from file import FileNode
+from unbundler.file_node import FileNode
 import json
 
 def parse_file(file_target="unbundled.json"):
   """
-  returns a n immutabile dictionary of FileNodes keyed on ID
+  returns acn immutabile dictionary of FileNodes keyed on ID
   """
-  with file(file_target) as f:
+  with open(file_target) as f:
     content = json.loads(f.read())
   nodes = {
     raw_file_node['id']: FileNode(**raw_file_node)
     for raw_file_node in content
   }
-  for ref_id, node in nodes.iteritems():
+  for ref_id, node in nodes.items():
     if node._dup_id:
       # undo the dedup webpack optimization
       node._source = nodes[node._dup_id].source
     # add dependency paths
-    for dep_id, path in node.deps.iteritems():
+    for dep_id, path in node.deps.items():
       nodes[dep_id].set_ref(ref_id, path)
   return nodes
