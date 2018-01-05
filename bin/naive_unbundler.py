@@ -4,6 +4,7 @@ import shutil
 import codecs
 from collections import Counter
 import json
+import re
 
 def get_nodes_from_file(file_target):
     nodes = file_parser.parse_file(file_target=file_target)
@@ -29,10 +30,13 @@ def get_nodes_from_file(file_target):
 def fix_source(node, nodes):
     source = node.source
     require_str = "require('{path}')"
+    require_str_t = "r~e~q~u~i~r~e('{path}')"
     for dep_id, dep_path in node.deps.items():
         source = source.replace(
             require_str.format(path=dep_path),
-            require_str.format(path="./"+nodes[dep_id].meta.name))
+            require_str_t.format(path="./"+nodes[dep_id].meta.name))
+    # source = re.sub("require\(.*\)", "undefined", source)
+    source = source.replace("r~e~q~u~i~r~e", "require")
     return source
 
 
